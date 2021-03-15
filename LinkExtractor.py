@@ -707,7 +707,8 @@ class ActionHandler():
     def addSourceExclusion(self):
         regexStr = self.extender.stAddExclusionTextField.getText()
         if len(regexStr) > 0:
-            self.extender.settings.sourceExclusionsModel.addEntry(regexStr)
+            try: self.extender.settings.sourceExclusionsModel.addEntry(regexStr)
+            except Exception as e: self.extender.stderr.println("[-] Failed adding source exclusion: %s" % e.__class__.__name__)
             self.extender.stAddExclusionTextField.setText("")
             self.extender.stAddExclusionTextField.requestFocus()
         
@@ -721,7 +722,9 @@ class ActionHandler():
                                                     "Edit Exclusion", \
                                                     swing.JOptionPane.PLAIN_MESSAGE, \
                                                     None, None, regexStr)
-            if result != None: self.extender.settings.sourceExclusionsModel.editEntryRegex(index, result)
+            if result != None:
+                try: self.extender.settings.sourceExclusionsModel.editEntryRegex(index, result)
+                except Exception as e: self.extender.stderr.println("[-] Failed editing source exclusion: %s" % e.__class__.__name__)
 
     def removeSelectedSourceExclusions(self):
         selectedRowIndexes = self.extender.sourceExclusionsTable.getSelectedRows()
@@ -731,12 +734,14 @@ class ActionHandler():
         self.extender.settings.sourceExclusionsModel.clearEntries()
 
     def loadSourceExclusions(self):
-        result = self.extender.fileChooser.showOpenDialog(self.extender.tabbedPane)
-        if result == swing.JFileChooser.APPROVE_OPTION:
-            selectedFile = self.extender.fileChooser.getSelectedFile()
-            with open(selectedFile.getCanonicalPath(), "r") as infile:
-                regexStrings = [i for i in infile.read().splitlines() if len(i) > 0]
-                for regexStr in regexStrings: self.extender.settings.sourceExclusionsModel.addEntry(regexStr)
+        try:
+            result = self.extender.fileChooser.showOpenDialog(self.extender.tabbedPane)
+            if result == swing.JFileChooser.APPROVE_OPTION:
+                selectedFile = self.extender.fileChooser.getSelectedFile()
+                with open(selectedFile.getCanonicalPath(), "r") as infile:
+                    regexStrings = [i for i in infile.read().splitlines() if len(i) > 0]
+                    for regexStr in regexStrings: self.extender.settings.sourceExclusionsModel.addEntry(regexStr)
+        except Exception as e: self.extender.stderr.println("[-] Failed loading source exclusion(s) from file: %s" % e.__class__.__name__)
 
     def toggleSourceExclusions(self):
         selectedRowIndexes = self.extender.sourceExclusionsTable.getSelectedRows()
@@ -746,7 +751,8 @@ class ActionHandler():
     def addLinkExclusion(self):
         regexStr = self.extender.stAddExclusion2TextField.getText()
         if len(regexStr) > 0:
-            self.extender.settings.linkExclusionsModel.addEntry(regexStr)
+            try: self.extender.settings.linkExclusionsModel.addEntry(regexStr)
+            except Exception as e: self.extender.stderr.println("[-] Failed adding link exclusion: %s" % e.__class__.__name__)
             self.extender.stAddExclusion2TextField.setText("")
             self.extender.stAddExclusion2TextField.requestFocus()
             self.applyLinkExclusions()
@@ -762,7 +768,8 @@ class ActionHandler():
                                                     swing.JOptionPane.PLAIN_MESSAGE, \
                                                     None, None, regexStr)
             if result != None:
-                self.extender.settings.linkExclusionsModel.editEntryRegex(index, result)
+                try: self.extender.settings.linkExclusionsModel.editEntryRegex(index, result)
+                except Exception as e: self.extender.stderr.println("[-] Failed editing link exclusion: %s" % e.__class__.__name__)
                 self.applyLinkExclusions()
 
     def removeSelectedLinkExclusions(self):
@@ -775,13 +782,16 @@ class ActionHandler():
         #self.applyLinkExclusions() # has no effect
 
     def loadLinkExclusions(self):
-        result = self.extender.fileChooser.showOpenDialog(self.extender.tabbedPane)
-        if result == swing.JFileChooser.APPROVE_OPTION:
-            selectedFile = self.extender.fileChooser.getSelectedFile()
-            with open(selectedFile.getCanonicalPath(), "r") as infile:
-                regexStrings = [i for i in infile.read().splitlines() if len(i) > 0]
-                for regexStr in regexStrings: self.extender.settings.linkExclusionsModel.addEntry(regexStr)
-                self.applyLinkExclusions()
+        try:
+            result = self.extender.fileChooser.showOpenDialog(self.extender.tabbedPane)
+            if result == swing.JFileChooser.APPROVE_OPTION:
+                selectedFile = self.extender.fileChooser.getSelectedFile()
+                with open(selectedFile.getCanonicalPath(), "r") as infile:
+                    regexStrings = [i for i in infile.read().splitlines() if len(i) > 0]
+                    for regexStr in regexStrings: self.extender.settings.linkExclusionsModel.addEntry(regexStr)
+                    self.applyLinkExclusions()
+        except Exception as e: self.extender.stderr.println("[-] Failed loading link exclusion(s) from file: %s" % e.__class__.__name__)
+            
 
     def toggleLinkExclusions(self):
         selectedRowIndexes = self.extender.linkExclusionsTable.getSelectedRows()
