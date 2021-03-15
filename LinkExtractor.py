@@ -28,7 +28,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         
         self.callbacks = callbacks
         self.helpers = callbacks.getHelpers()
-        self.stdout = PrintWriter(callbacks.getStdout(), True) # for debugging
+        #self.stdout = PrintWriter(callbacks.getStdout(), True) # for debugging
         self.stderr = PrintWriter(callbacks.getStderr(), True)
         callbacks.setExtensionName("LinkExtractor")
 
@@ -404,7 +404,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         statusCode = analyzedResponse.getStatusCode()
         extension = getExtension(parsedUrl.path)
 
-        regexes = [i.regex for i in self.settings.sourceExclusionsModel.entries]
+        regexes = [i.regex for i in self.settings.sourceExclusionsModel.entries if i.enabled]
         if self.settings.process == 1 and extension != "js" or any([regex.search(url) for regex in regexes]): return
 
         if self.callbacks.isInScope(urlObj) and not self.sourcesModel.entryExists(host, path, method, statusCode):
@@ -414,7 +414,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
             links = self.linkExtractor.extractLinks(responseContent, host)
             sourceEntry = self.sourcesModel.addEntry(host, path, method, statusCode, length, mimeType, extension, time)
             
-            regexes = [i.regex for i in self.settings.linkExclusionsModel.entries]
+            regexes = [i.regex for i in self.settings.linkExclusionsModel.entries if i.enabled]
             for i in links:
                 if any([regex.search(i) for regex in regexes]): continue
                 linkEntry = self.linksModel.addEntry(i, sourceEntry)
@@ -749,6 +749,7 @@ class ActionHandler():
             self.extender.settings.linkExclusionsModel.addEntry(regexStr)
             self.extender.stAddExclusion2TextField.setText("")
             self.extender.stAddExclusion2TextField.requestFocus()
+            self.applyLinkExclusions()
         
     def editLinkExclusion(self):
         index = self.extender.linkExclusionsTable.getSelectedRow()
@@ -760,14 +761,18 @@ class ActionHandler():
                                                     "Edit Exclusion", \
                                                     swing.JOptionPane.PLAIN_MESSAGE, \
                                                     None, None, regexStr)
-            if result != None: self.extender.settings.linkExclusionsModel.editEntryRegex(index, result)
+            if result != None:
+                self.extender.settings.linkExclusionsModel.editEntryRegex(index, result)
+                self.applyLinkExclusions()
 
     def removeSelectedLinkExclusions(self):
         selectedRowIndexes = self.extender.linkExclusionsTable.getSelectedRows()
         for i in selectedRowIndexes[::-1]: self.extender.settings.linkExclusionsModel.removeEntry(i)
+        self.applyLinkExclusions()
 
     def clearLinkExclusions(self):
         self.extender.settings.linkExclusionsModel.clearEntries()
+        #self.applyLinkExclusions() # has no effect
 
     def loadLinkExclusions(self):
         result = self.extender.fileChooser.showOpenDialog(self.extender.tabbedPane)
@@ -776,11 +781,22 @@ class ActionHandler():
             with open(selectedFile.getCanonicalPath(), "r") as infile:
                 regexStrings = [i for i in infile.read().splitlines() if len(i) > 0]
                 for regexStr in regexStrings: self.extender.settings.linkExclusionsModel.addEntry(regexStr)
+                self.applyLinkExclusions()
 
     def toggleLinkExclusions(self):
         selectedRowIndexes = self.extender.linkExclusionsTable.getSelectedRows()
         if len(selectedRowIndexes) > 0:
             self.extender.settings.linkExclusionsModel.toggleEntries(selectedRowIndexes)
+            self.applyLinkExclusions()
+    
+    def applyLinkExclusions(self):
+        regexes = [i.regex for i in self.extender.settings.linkExclusionsModel.entries if i.enabled]
+        for i in range(self.extender.linksModel.entries.size()-1, -1, -1):
+            if any([regex.search(self.extender.linksModel.entries.get(i).url) for regex in regexes]): self.extender.linksModel.entries.remove(i)
+        for i in range(self.extender.sourcesModel.entries.size()):
+            entry = self.extender.sourcesModel.entries.get(i)
+            for j in range(len(entry.links)-1, -1, -1):
+                if any([regex.search(entry.links[j].url) for regex in regexes]): del entry.links[j]
 
     def exportAsText(self):
         try:
