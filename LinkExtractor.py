@@ -82,11 +82,14 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
 
         self.stStrings = {
             "section1HeaderLabel": "Processing",
-            "section2HeaderLabel": "Exclusions (Regexes for Source URLs)",
-            "section3HeaderLabel": "Misc",
+            "section2HeaderLabel": "Source Exclusions",
+            "section3HeaderLabel": "Link Exclusions",
+            "section4HeaderLabel": "Misc",
             "group1RadioButton1": "Only process JavaScript files",
             "group1RadioButton2": "Process all responses",
             "group1RadioButton3": "Pause LinkExtractor",
+            "sourceExclusionsLabel": "Any responses from requests to URLs that match any of the Regular Expression patterns below will not be processed.",
+            "linkExclusionsLabel": "Any links found in processed responses that match any of the Regular Expression patterns below will not be saved nor displayed.",
             "exportLabel": "Export findings as:",
             "clearFindingsDialog": "Are you sure you want to clear all findings by LinkExtractor? This cannot be undone.",
             "editExclusionDialog": ""
@@ -124,61 +127,113 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
 
         stSection2HeaderLabel = swing.JLabel(self.stStrings["section2HeaderLabel"])
         stSection2HeaderLabel.setFont(stHeaderFont)
-        stSection2HeaderLabel.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 15, 0))
-        
+        stSection2HeaderLabel.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 8, 0))
+
+        stSourceExclusionsLabel = swing.JLabel(self.stStrings["sourceExclusionsLabel"])
+
         stEditButton = swing.JButton("Edit"); setFixedSize(stEditButton, 76, 22)
-        stEditButton.setActionCommand("editExclusion")
+        stEditButton.setActionCommand("editSourceExclusion")
         stEditButton.addActionListener(self.eventHandler)
         stEditButton.setMnemonic(KeyEvent.VK_E)
 
         stRemoveButton = swing.JButton("Remove"); setFixedSize(stRemoveButton, 76, 22)
-        stRemoveButton.setActionCommand("removeSelectedExclusions")
+        stRemoveButton.setActionCommand("removeSelectedSourceExclusions")
         stRemoveButton.addActionListener(self.eventHandler)
         stRemoveButton.setMnemonic(KeyEvent.VK_R)
         
         stClearButton = swing.JButton("Clear"); setFixedSize(stClearButton, 76, 22)
-        stClearButton.setActionCommand("clearExclusions")
+        stClearButton.setActionCommand("clearSourceExclusions")
         stClearButton.addActionListener(self.eventHandler)
         stClearButton.setMnemonic(KeyEvent.VK_C)
         
         stLoadButton = swing.JButton("Load ..."); setFixedSize(stLoadButton, 76, 22)
-        stLoadButton.setActionCommand("loadExclusions")
+        stLoadButton.setActionCommand("loadSourceExclusions")
         stLoadButton.addActionListener(self.eventHandler)
         stLoadButton.setMnemonic(KeyEvent.VK_L)
         
-        stToggleButton = swing.JButton("Toggle"); setFixedSize(stToggleButton, 76, 22) # enable/disable exclusion(s)
-        stToggleButton.setActionCommand("toggleExclusions")
+        stToggleButton = swing.JButton("Toggle"); setFixedSize(stToggleButton, 76, 22) # enable/disable source exclusion(s)
+        stToggleButton.setActionCommand("toggleSourceExclusions")
         stToggleButton.addActionListener(self.eventHandler)
         stToggleButton.setMnemonic(KeyEvent.VK_T)
         
         stAddButton = swing.JButton("Add"); setFixedSize(stAddButton, 76, 22)
-        stAddButton.setActionCommand("addExclusion")
+        stAddButton.setActionCommand("addSourceExclusion")
         stAddButton.addActionListener(self.eventHandler)
         
-        self.exclusionsModel = ExclusionsModel(self.settings.exclusions)
-        self.exclusionsTable = ExclusionsTable(self.exclusionsModel)
-        exclusionsTotalWidth = 500
-        stExclusionsScrollPane = swing.JScrollPane(self.exclusionsTable); setFixedSize(stExclusionsScrollPane, exclusionsTotalWidth, 200)
-        exclusionsColumnWidthPercentages = (0.12, 0.88)
-        exclusionsColumnModel = self.exclusionsTable.getColumnModel()
-        for i in range(self.exclusionsTable.getColumnCount()):
-            width = int(round(exclusionsTotalWidth * exclusionsColumnWidthPercentages[i]))
-            exclusionsColumnModel.getColumn(i).setPreferredWidth(width)
+        self.sourceExclusionsTable = ExclusionsTable(self.settings.sourceExclusionsModel)
+        sourceExclusionsTotalWidth = 500
+        stSourceExclusionsScrollPane = swing.JScrollPane(self.sourceExclusionsTable); setFixedSize(stSourceExclusionsScrollPane, sourceExclusionsTotalWidth, 200)
+        sourceExclusionsColumnWidthPercentages = (0.12, 0.88)
+        sourceExclusionsColumnModel = self.sourceExclusionsTable.getColumnModel()
+        for i in range(self.sourceExclusionsTable.getColumnCount()):
+            width = int(round(sourceExclusionsTotalWidth * sourceExclusionsColumnWidthPercentages[i]))
+            sourceExclusionsColumnModel.getColumn(i).setPreferredWidth(width)
         centerCellRenderer = DefaultTableCellRenderer()
         centerCellRenderer.setHorizontalAlignment(swing.SwingConstants.CENTER)
-        exclusionsColumnModel.getColumn(0).setCellRenderer(centerCellRenderer)
+        sourceExclusionsColumnModel.getColumn(0).setCellRenderer(centerCellRenderer)
 
         stAddExclusionTextField = swing.JTextField(); setFixedSize(stAddExclusionTextField, 500, 22)
-        stAddExclusionTextField.setActionCommand("addExclusion")
+        stAddExclusionTextField.setActionCommand("addSourceExclusion")
         stAddExclusionTextField.addActionListener(self.eventHandler)
         self.stAddExclusionTextField = stAddExclusionTextField
         
         stSeparator2 = swing.JSeparator(swing.SwingConstants.HORIZONTAL); setFixedSize(stSeparator2, 1920, 5)
-
+        
         # Section 3 #
 
         stSection3HeaderLabel = swing.JLabel(self.stStrings["section3HeaderLabel"])
         stSection3HeaderLabel.setFont(stHeaderFont)
+        stSection3HeaderLabel.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 8, 0))
+
+        stLinkExclusionsLabel = swing.JLabel(self.stStrings["linkExclusionsLabel"])
+
+        stEdit2Button = swing.JButton("Edit"); setFixedSize(stEdit2Button, 76, 22)
+        stEdit2Button.setActionCommand("editLinkExclusion")
+        stEdit2Button.addActionListener(self.eventHandler)
+
+        stRemove2Button = swing.JButton("Remove"); setFixedSize(stRemove2Button, 76, 22)
+        stRemove2Button.setActionCommand("removeSelectedLinkExclusions")
+        stRemove2Button.addActionListener(self.eventHandler)
+        
+        stClear2Button = swing.JButton("Clear"); setFixedSize(stClear2Button, 76, 22)
+        stClear2Button.setActionCommand("clearLinkExclusions")
+        stClear2Button.addActionListener(self.eventHandler)
+        
+        stLoad2Button = swing.JButton("Load ..."); setFixedSize(stLoad2Button, 76, 22)
+        stLoad2Button.setActionCommand("loadLinkExclusions")
+        stLoad2Button.addActionListener(self.eventHandler)
+        
+        stToggle2Button = swing.JButton("Toggle"); setFixedSize(stToggle2Button, 76, 22) # enable/disable link exclusion(s)
+        stToggle2Button.setActionCommand("toggleLinkExclusions")
+        stToggle2Button.addActionListener(self.eventHandler)
+        
+        stAdd2Button = swing.JButton("Add"); setFixedSize(stAdd2Button, 76, 22)
+        stAdd2Button.setActionCommand("addLinkExclusion")
+        stAdd2Button.addActionListener(self.eventHandler)
+        
+        self.linkExclusionsTable = ExclusionsTable(self.settings.linkExclusionsModel)
+        linkExclusionsTotalWidth = 500
+        stLinkExclusionsScrollPane = swing.JScrollPane(self.linkExclusionsTable); setFixedSize(stLinkExclusionsScrollPane, linkExclusionsTotalWidth, 200)
+        linkExclusionsColumnWidthPercentages = (0.12, 0.88)
+        linkExclusionsColumnModel = self.linkExclusionsTable.getColumnModel()
+        for i in range(self.linkExclusionsTable.getColumnCount()):
+            width = int(round(linkExclusionsTotalWidth * linkExclusionsColumnWidthPercentages[i]))
+            linkExclusionsColumnModel.getColumn(i).setPreferredWidth(width)
+        #centerCellRenderer = DefaultTableCellRenderer()
+        #centerCellRenderer.setHorizontalAlignment(swing.SwingConstants.CENTER)
+        linkExclusionsColumnModel.getColumn(0).setCellRenderer(centerCellRenderer) # same centerCellRenderer as with sourceExclusionsColumnModel
+
+        stAddExclusion2TextField = swing.JTextField(); setFixedSize(stAddExclusion2TextField, 500, 22)
+        stAddExclusion2TextField.setActionCommand("addLinkExclusion")
+        stAddExclusion2TextField.addActionListener(self.eventHandler)
+        self.stAddExclusion2TextField = stAddExclusion2TextField
+        
+        stSeparator3 = swing.JSeparator(swing.SwingConstants.HORIZONTAL); setFixedSize(stSeparator3, 1920, 5)
+        
+        # Section 4 #
+
+        stSection4HeaderLabel = swing.JLabel(self.stStrings["section4HeaderLabel"])
+        stSection4HeaderLabel.setFont(stHeaderFont)
 
         stExportLabel = swing.JLabel(self.stStrings["exportLabel"])
         
@@ -190,7 +245,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         stClearFindingsButton.setActionCommand("clearFindings")
         stClearFindingsButton.addActionListener(self.eventHandler)
         
-        stSeparator3 = swing.JSeparator(swing.SwingConstants.HORIZONTAL); setFixedSize(stSeparator3, 1920, 5)
+        stSeparator4 = swing.JSeparator(swing.SwingConstants.HORIZONTAL); setFixedSize(stSeparator4, 1920, 5)
 
         ### Layout Setup ###
 
@@ -216,6 +271,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                     )
                     .addComponent(stSeparator1)
                     .addComponent(stSection2HeaderLabel) # Section 2
+                    .addComponent(stSourceExclusionsLabel)
                     .addGroup(stLayout.createSequentialGroup()
                         .addGroup(stLayout.createParallelGroup()
                             .addComponent(stEditButton)
@@ -224,7 +280,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                             .addComponent(stLoadButton)
                             .addComponent(stToggleButton)
                         )
-                        .addComponent(stExclusionsScrollPane)
+                        .addComponent(stSourceExclusionsScrollPane)
                     )
                     .addGroup(stLayout.createSequentialGroup()
                         .addComponent(stAddButton)
@@ -232,12 +288,29 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                     )
                     .addComponent(stSeparator2)
                     .addComponent(stSection3HeaderLabel) # Section 3
+                    .addComponent(stLinkExclusionsLabel)
+                    .addGroup(stLayout.createSequentialGroup()
+                        .addGroup(stLayout.createParallelGroup()
+                            .addComponent(stEdit2Button)
+                            .addComponent(stRemove2Button)
+                            .addComponent(stClear2Button)
+                            .addComponent(stLoad2Button)
+                            .addComponent(stToggle2Button)
+                        )
+                        .addComponent(stLinkExclusionsScrollPane)
+                    )
+                    .addGroup(stLayout.createSequentialGroup()
+                        .addComponent(stAdd2Button)
+                        .addComponent(stAddExclusion2TextField)
+                    )
+                    .addComponent(stSeparator3)
+                    .addComponent(stSection4HeaderLabel) # Section 4
                     .addGroup(stLayout.createSequentialGroup()
                         .addComponent(stExportLabel)
                         .addComponent(stTextButton)
                     )
                     .addComponent(stClearFindingsButton)
-                    .addComponent(stSeparator3)
+                    .addComponent(stSeparator4)
                 )
         )
 
@@ -251,6 +324,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                 )
                 .addComponent(stSeparator1)
                 .addComponent(stSection2HeaderLabel) # Section 2
+                .addComponent(stSourceExclusionsLabel)
                 .addGroup(stLayout.createSequentialGroup()
                     .addGroup(stLayout.createParallelGroup()
                         .addGroup(stLayout.createSequentialGroup()
@@ -260,7 +334,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                             .addComponent(stLoadButton)
                             .addComponent(stToggleButton)
                         )
-                        .addComponent(stExclusionsScrollPane)
+                        .addComponent(stSourceExclusionsScrollPane)
                     )
                 )
                 .addGroup(stLayout.createParallelGroup()
@@ -269,12 +343,31 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                 )
                 .addComponent(stSeparator2)
                 .addComponent(stSection3HeaderLabel) # Section 3
+                .addComponent(stLinkExclusionsLabel)
+                .addGroup(stLayout.createSequentialGroup()
+                    .addGroup(stLayout.createParallelGroup()
+                        .addGroup(stLayout.createSequentialGroup()
+                            .addComponent(stEdit2Button)
+                            .addComponent(stRemove2Button)
+                            .addComponent(stClear2Button)
+                            .addComponent(stLoad2Button)
+                            .addComponent(stToggle2Button)
+                        )
+                        .addComponent(stLinkExclusionsScrollPane)
+                    )
+                )
+                .addGroup(stLayout.createParallelGroup()
+                    .addComponent(stAdd2Button)
+                    .addComponent(stAddExclusion2TextField)
+                )
+                .addComponent(stSeparator3)
+                .addComponent(stSection4HeaderLabel) # Section 4
                 .addGroup(stLayout.createParallelGroup()
                     .addComponent(stExportLabel)
                     .addComponent(stTextButton)
                 )
                 .addComponent(stClearFindingsButton)
-                .addComponent(stSeparator3)
+                .addComponent(stSeparator4)
         )
 
         self.callbacks.customizeUiComponent(self.tabbedPane)
@@ -311,7 +404,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         statusCode = analyzedResponse.getStatusCode()
         extension = getExtension(parsedUrl.path)
 
-        regexes = [self.settings.exclusions.get(i).regex for i in range(self.settings.exclusions.size())]
+        regexes = [i.regex for i in self.settings.sourceExclusionsModel.entries]
         if self.settings.process == 1 and extension != "js" or any([regex.search(url) for regex in regexes]): return
 
         if self.callbacks.isInScope(urlObj) and not self.sourcesModel.entryExists(host, path, method, statusCode):
@@ -320,7 +413,10 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
             time = str(datetime.now())
             links = self.linkExtractor.extractLinks(responseContent, host)
             sourceEntry = self.sourcesModel.addEntry(host, path, method, statusCode, length, mimeType, extension, time)
+            
+            regexes = [i.regex for i in self.settings.linkExclusionsModel.entries]
             for i in links:
+                if any([regex.search(i) for regex in regexes]): continue
                 linkEntry = self.linksModel.addEntry(i, sourceEntry)
                 sourceEntry.addLink(linkEntry)
             self.sourcesModel.refreshTable()
@@ -533,11 +629,11 @@ class LinksTable(swing.JTable):
 class ExclusionEntry():
 
     def __init__(self, regexStr, enabled=True):
-        self.regex = re.compile(regexStr)
+        self.regex = re.compile(regexStr, re.IGNORECASE)
         self.enabled = enabled
 
     def editRegex(self, regexStr):
-        self.regex = re.compile(regexStr)
+        self.regex = re.compile(regexStr, re.IGNORECASE)
 
     def toggle(self):
         self.enabled = not self.enabled
@@ -547,40 +643,40 @@ class ExclusionsModel(AbstractTableModel):
     columnNames = ("Enabled", "Regex")
 
     def __init__(self, exclusions):
-        self.entries = exclusions
+        self.entries = exclusions # array (not ArrayList)
 
     def addEntry(self, regexStr):
         entry = ExclusionEntry(regexStr)
-        self.entries.add(entry)
+        self.entries.append(entry)
         self.fireTableDataChanged()
 
     def editEntryRegex(self, index, regexStr):
-        self.entries.get(index).editRegex(regexStr)
+        self.entries[index].editRegex(regexStr)
         self.fireTableDataChanged()
 
     def removeEntry(self, index):
-        self.entries.remove(index)
+        del self.entries[index]
         self.fireTableDataChanged()
 
     def toggleEntries(self, indexes):
-        for i in indexes: self.entries.get(i).toggle()
+        for i in indexes: self.entries[i].toggle()
         self.fireTableDataChanged()
 
     def clearEntries(self):
-        self.entries.clear()
+        del self.entries[:]
         self.fireTableDataChanged()
 
     def getColumnName(self, columnIndex):
         return self.columnNames[columnIndex]
 
     def getRowCount(self):
-        return self.entries.size()
+        return len(self.entries)
 
     def getColumnCount(self):
         return len(self.columnNames)
 
     def getValueAt(self, rowIndex, columnIndex):
-        entry = self.entries.get(rowIndex)
+        entry = self.entries[rowIndex]
         if columnIndex == 0: return u"\u2714" if entry.enabled else ""
         elif columnIndex == 1: return entry.regex.pattern
         else: return ""
@@ -596,7 +692,8 @@ class Settings():
 
     def __init__(self):
         self.process = 1 # (the verb), 0 => nothing, 1 => only JS, 2 => anything
-        self.exclusions = ArrayList()
+        self.sourceExclusionsModel = ExclusionsModel([])
+        self.linkExclusionsModel = ExclusionsModel([])
 
 
 class ActionHandler():
@@ -607,44 +704,83 @@ class ActionHandler():
     def setProcessSetting(self, value):
         self.extender.settings.process = value
 
-    def addExclusion(self):
+    def addSourceExclusion(self):
         regexStr = self.extender.stAddExclusionTextField.getText()
         if len(regexStr) > 0:
-            self.extender.exclusionsModel.addEntry(regexStr)
+            self.extender.settings.sourceExclusionsModel.addEntry(regexStr)
             self.extender.stAddExclusionTextField.setText("")
             self.extender.stAddExclusionTextField.requestFocus()
         
-    def editExclusion(self):
-        index = self.extender.exclusionsTable.getSelectedRow()
+    def editSourceExclusion(self):
+        index = self.extender.sourceExclusionsTable.getSelectedRow()
         if index != -1 :
-            exclusionToEdit = self.extender.exclusionsModel.entries.get(index)
+            exclusionToEdit = self.extender.settings.sourceExclusionsModel.entries[index]
             regexStr = exclusionToEdit.regex.pattern
             result = swing.JOptionPane.showInputDialog(self.extender.tabbedPane, \
                                                     self.extender.stStrings["editExclusionDialog"], \
                                                     "Edit Exclusion", \
                                                     swing.JOptionPane.PLAIN_MESSAGE, \
                                                     None, None, regexStr)
-            if result != None: self.extender.exclusionsModel.editEntryRegex(index, result)
+            if result != None: self.extender.settings.sourceExclusionsModel.editEntryRegex(index, result)
 
-    def removeSelectedExclusions(self):
-        selectedRowIndexes = self.extender.exclusionsTable.getSelectedRows()
-        for i in selectedRowIndexes[::-1]: self.extender.exclusionsModel.removeEntry(i)
+    def removeSelectedSourceExclusions(self):
+        selectedRowIndexes = self.extender.sourceExclusionsTable.getSelectedRows()
+        for i in selectedRowIndexes[::-1]: self.extender.settings.sourceExclusionsModel.removeEntry(i)
 
-    def clearExclusions(self):
-        self.extender.exclusionsModel.clearEntries()
+    def clearSourceExclusions(self):
+        self.extender.settings.sourceExclusionsModel.clearEntries()
 
-    def loadExclusions(self):
+    def loadSourceExclusions(self):
         result = self.extender.fileChooser.showOpenDialog(self.extender.tabbedPane)
         if result == swing.JFileChooser.APPROVE_OPTION:
             selectedFile = self.extender.fileChooser.getSelectedFile()
             with open(selectedFile.getCanonicalPath(), "r") as infile:
                 regexStrings = [i for i in infile.read().splitlines() if len(i) > 0]
-                for regexStr in regexStrings: self.extender.exclusionsModel.addEntry(regexStr)
+                for regexStr in regexStrings: self.extender.settings.sourceExclusionsModel.addEntry(regexStr)
 
-    def toggleExclusions(self):
-        selectedRowIndexes = self.extender.exclusionsTable.getSelectedRows()
+    def toggleSourceExclusions(self):
+        selectedRowIndexes = self.extender.sourceExclusionsTable.getSelectedRows()
         if len(selectedRowIndexes) > 0:
-            self.extender.exclusionsModel.toggleEntries(selectedRowIndexes)
+            self.extender.settings.sourceExclusionsModel.toggleEntries(selectedRowIndexes)
+
+    def addLinkExclusion(self):
+        regexStr = self.extender.stAddExclusion2TextField.getText()
+        if len(regexStr) > 0:
+            self.extender.settings.linkExclusionsModel.addEntry(regexStr)
+            self.extender.stAddExclusion2TextField.setText("")
+            self.extender.stAddExclusion2TextField.requestFocus()
+        
+    def editLinkExclusion(self):
+        index = self.extender.linkExclusionsTable.getSelectedRow()
+        if index != -1 :
+            exclusionToEdit = self.extender.settings.linkExclusionsModel.entries[index]
+            regexStr = exclusionToEdit.regex.pattern
+            result = swing.JOptionPane.showInputDialog(self.extender.tabbedPane, \
+                                                    self.extender.stStrings["editExclusionDialog"], \
+                                                    "Edit Exclusion", \
+                                                    swing.JOptionPane.PLAIN_MESSAGE, \
+                                                    None, None, regexStr)
+            if result != None: self.extender.settings.linkExclusionsModel.editEntryRegex(index, result)
+
+    def removeSelectedLinkExclusions(self):
+        selectedRowIndexes = self.extender.linkExclusionsTable.getSelectedRows()
+        for i in selectedRowIndexes[::-1]: self.extender.settings.linkExclusionsModel.removeEntry(i)
+
+    def clearLinkExclusions(self):
+        self.extender.settings.linkExclusionsModel.clearEntries()
+
+    def loadLinkExclusions(self):
+        result = self.extender.fileChooser.showOpenDialog(self.extender.tabbedPane)
+        if result == swing.JFileChooser.APPROVE_OPTION:
+            selectedFile = self.extender.fileChooser.getSelectedFile()
+            with open(selectedFile.getCanonicalPath(), "r") as infile:
+                regexStrings = [i for i in infile.read().splitlines() if len(i) > 0]
+                for regexStr in regexStrings: self.extender.settings.linkExclusionsModel.addEntry(regexStr)
+
+    def toggleLinkExclusions(self):
+        selectedRowIndexes = self.extender.linkExclusionsTable.getSelectedRows()
+        if len(selectedRowIndexes) > 0:
+            self.extender.settings.linkExclusionsModel.toggleEntries(selectedRowIndexes)
 
     def exportAsText(self):
         try:
@@ -679,12 +815,19 @@ class EventHandler(swing.AbstractAction):
         elif actionEvent.getActionCommand() == "setProcess1": self.actionHandler.setProcessSetting(1)
         elif actionEvent.getActionCommand() == "setProcess2": self.actionHandler.setProcessSetting(2)
 
-        elif actionEvent.getActionCommand() == "addExclusion": self.actionHandler.addExclusion()
-        elif actionEvent.getActionCommand() == "editExclusion": self.actionHandler.editExclusion()
-        elif actionEvent.getActionCommand() == "removeSelectedExclusions": self.actionHandler.removeSelectedExclusions()
-        elif actionEvent.getActionCommand() == "clearExclusions": self.actionHandler.clearExclusions()
-        elif actionEvent.getActionCommand() == "loadExclusions": self.actionHandler.loadExclusions()
-        elif actionEvent.getActionCommand() == "toggleExclusions": self.actionHandler.toggleExclusions()
+        elif actionEvent.getActionCommand() == "addSourceExclusion": self.actionHandler.addSourceExclusion()
+        elif actionEvent.getActionCommand() == "editSourceExclusion": self.actionHandler.editSourceExclusion()
+        elif actionEvent.getActionCommand() == "removeSelectedSourceExclusions": self.actionHandler.removeSelectedSourceExclusions()
+        elif actionEvent.getActionCommand() == "clearSourceExclusions": self.actionHandler.clearSourceExclusions()
+        elif actionEvent.getActionCommand() == "loadSourceExclusions": self.actionHandler.loadSourceExclusions()
+        elif actionEvent.getActionCommand() == "toggleSourceExclusions": self.actionHandler.toggleSourceExclusions()
+
+        elif actionEvent.getActionCommand() == "addLinkExclusion": self.actionHandler.addLinkExclusion()
+        elif actionEvent.getActionCommand() == "editLinkExclusion": self.actionHandler.editLinkExclusion()
+        elif actionEvent.getActionCommand() == "removeSelectedLinkExclusions": self.actionHandler.removeSelectedLinkExclusions()
+        elif actionEvent.getActionCommand() == "clearLinkExclusions": self.actionHandler.clearLinkExclusions()
+        elif actionEvent.getActionCommand() == "loadLinkExclusions": self.actionHandler.loadLinkExclusions()
+        elif actionEvent.getActionCommand() == "toggleLinkExclusions": self.actionHandler.toggleLinkExclusions()
 
         elif actionEvent.getActionCommand() == "exportAsText": self.actionHandler.exportAsText()
         elif actionEvent.getActionCommand() == "clearFindings": self.actionHandler.clearFindings()
