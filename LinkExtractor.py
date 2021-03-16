@@ -1,4 +1,4 @@
-import re
+import re, json
 from urlparse import urlparse, urljoin
 from datetime import datetime
 from burp import IBurpExtender, ITab, IHttpListener
@@ -35,8 +35,9 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         self.linkExtractor = LinkExtractor()
         self.actionHandler = ActionHandler(self)
         self.eventHandler = EventHandler(self.actionHandler)
-        self.settings = Settings()
+        self.settings = Settings(self)
         self.initUi()
+        self.settings.loadSettings()
 
         callbacks.registerHttpListener(self)
 
@@ -103,23 +104,23 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         stSection1HeaderLabel.setFont(stHeaderFont)
         stSection1HeaderLabel.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 10, 0))
         
-        stGroup1RadioButton1 = swing.JRadioButton(self.stStrings["group1RadioButton1"])
-        stGroup1RadioButton1.setSelected(True)
-        stGroup1RadioButton1.setActionCommand("setProcess1")
-        stGroup1RadioButton1.addActionListener(self.eventHandler)
+        self.stGroup1RadioButton1 = swing.JRadioButton(self.stStrings["group1RadioButton1"])
+        self.stGroup1RadioButton1.setSelected(True)
+        self.stGroup1RadioButton1.setActionCommand("setProcess1")
+        self.stGroup1RadioButton1.addActionListener(self.eventHandler)
         
-        stGroup1RadioButton2 = swing.JRadioButton(self.stStrings["group1RadioButton2"])
-        stGroup1RadioButton2.setActionCommand("setProcess2")
-        stGroup1RadioButton2.addActionListener(self.eventHandler)
+        self.stGroup1RadioButton2 = swing.JRadioButton(self.stStrings["group1RadioButton2"])
+        self.stGroup1RadioButton2.setActionCommand("setProcess2")
+        self.stGroup1RadioButton2.addActionListener(self.eventHandler)
         
-        stGroup1RadioButton3 = swing.JRadioButton(self.stStrings["group1RadioButton3"])
-        stGroup1RadioButton3.setActionCommand("setProcess0")
-        stGroup1RadioButton3.addActionListener(self.eventHandler)
+        self.stGroup1RadioButton3 = swing.JRadioButton(self.stStrings["group1RadioButton3"])
+        self.stGroup1RadioButton3.setActionCommand("setProcess0")
+        self.stGroup1RadioButton3.addActionListener(self.eventHandler)
         
         stButtonGroup1 = swing.ButtonGroup()
-        stButtonGroup1.add(stGroup1RadioButton1)
-        stButtonGroup1.add(stGroup1RadioButton2)
-        stButtonGroup1.add(stGroup1RadioButton3)
+        stButtonGroup1.add(self.stGroup1RadioButton1)
+        stButtonGroup1.add(self.stGroup1RadioButton2)
+        stButtonGroup1.add(self.stGroup1RadioButton3)
         
         stSeparator1 = swing.JSeparator(swing.SwingConstants.HORIZONTAL); setFixedSize(stSeparator1, 1920, 5)
  
@@ -264,9 +265,9 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                     .addComponent(stSection1HeaderLabel) # Section 1
                     .addGroup(stLayout.createSequentialGroup()
                         .addGroup(stLayout.createParallelGroup()
-                            .addComponent(stGroup1RadioButton1)
-                            .addComponent(stGroup1RadioButton2)
-                            .addComponent(stGroup1RadioButton3)
+                            .addComponent(self.stGroup1RadioButton1)
+                            .addComponent(self.stGroup1RadioButton2)
+                            .addComponent(self.stGroup1RadioButton3)
                         )
                     )
                     .addComponent(stSeparator1)
@@ -318,9 +319,9 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
             stLayout.createSequentialGroup()
                 .addComponent(stSection1HeaderLabel) # Section 1
                 .addGroup(stLayout.createSequentialGroup()
-                    .addComponent(stGroup1RadioButton1)
-                    .addComponent(stGroup1RadioButton2)
-                    .addComponent(stGroup1RadioButton3)
+                    .addComponent(self.stGroup1RadioButton1)
+                    .addComponent(self.stGroup1RadioButton2)
+                    .addComponent(self.stGroup1RadioButton3)
                 )
                 .addComponent(stSeparator1)
                 .addComponent(stSection2HeaderLabel) # Section 2
@@ -645,8 +646,8 @@ class ExclusionsModel(AbstractTableModel):
     def __init__(self, exclusions):
         self.entries = exclusions # array (not ArrayList)
 
-    def addEntry(self, regexStr):
-        entry = ExclusionEntry(regexStr)
+    def addEntry(self, regexStr, enabled=True):
+        entry = ExclusionEntry(regexStr, enabled)
         self.entries.append(entry)
         self.fireTableDataChanged()
 
@@ -688,13 +689,40 @@ class ExclusionsTable(swing.JTable):
         self.setModel(model)
 
 
+# Settings
+
 class Settings():
 
-    def __init__(self):
+    def __init__(self, extender):
+        self.extender = extender
         self.process = 1 # (the verb), 0 => nothing, 1 => only JS, 2 => anything
         self.sourceExclusionsModel = ExclusionsModel([])
         self.linkExclusionsModel = ExclusionsModel([])
 
+    def loadSettings(self):
+        if self.extender.callbacks.loadExtensionSetting("LENotFirstTime") == None:
+            defaultExclusionRegexStr = "\.(png|jpg|jpeg|gif|ico|woff|woff2|ttf)($|\?)"
+            self.sourceExclusionsModel.addEntry(defaultExclusionRegexStr)
+            self.linkExclusionsModel.addEntry(defaultExclusionRegexStr)
+            self.extender.callbacks.saveExtensionSetting("LENotFirstTime", "yes")
+            self.saveSettings()
+        else:
+            settingsDict = json.loads(self.extender.callbacks.loadExtensionSetting("LESettings"), encoding="utf-8")
+            self.process = settingsDict["process"]
+            if self.process == 0: self.extender.stGroup1RadioButton3.setSelected(True)
+            if self.process == 1: self.extender.stGroup1RadioButton1.setSelected(True)
+            if self.process == 2: self.extender.stGroup1RadioButton2.setSelected(True)
+            for k,v in settingsDict["sourceExclusions"].iteritems(): self.sourceExclusionsModel.addEntry(k, v)
+            for k,v in settingsDict["linkExclusions"].iteritems(): self.linkExclusionsModel.addEntry(k, v)
+
+    def saveSettings(self):
+        settingsDict = {"process": self.process}
+        settingsDict["sourceExclusions"] = {i.regex.pattern:i.enabled for i in self.sourceExclusionsModel.entries}
+        settingsDict["linkExclusions"] = {i.regex.pattern:i.enabled for i in self.linkExclusionsModel.entries}
+        self.extender.callbacks.saveExtensionSetting("LESettings", json.dumps(settingsDict))
+
+
+# Event Handling
 
 class ActionHandler():
 
@@ -703,6 +731,7 @@ class ActionHandler():
 
     def setProcessSetting(self, value):
         self.extender.settings.process = value
+        self.extender.settings.saveSettings()
 
     def addSourceExclusion(self):
         regexStr = self.extender.stAddExclusionTextField.getText()
@@ -711,6 +740,7 @@ class ActionHandler():
             except Exception as e: self.extender.stderr.println("[-] Failed adding source exclusion: %s" % e.__class__.__name__)
             self.extender.stAddExclusionTextField.setText("")
             self.extender.stAddExclusionTextField.requestFocus()
+        self.extender.settings.saveSettings()
         
     def editSourceExclusion(self):
         index = self.extender.sourceExclusionsTable.getSelectedRow()
@@ -725,13 +755,16 @@ class ActionHandler():
             if result != None:
                 try: self.extender.settings.sourceExclusionsModel.editEntryRegex(index, result)
                 except Exception as e: self.extender.stderr.println("[-] Failed editing source exclusion: %s" % e.__class__.__name__)
+        self.extender.settings.saveSettings()
 
     def removeSelectedSourceExclusions(self):
         selectedRowIndexes = self.extender.sourceExclusionsTable.getSelectedRows()
         for i in selectedRowIndexes[::-1]: self.extender.settings.sourceExclusionsModel.removeEntry(i)
+        self.extender.settings.saveSettings()
 
     def clearSourceExclusions(self):
         self.extender.settings.sourceExclusionsModel.clearEntries()
+        self.extender.settings.saveSettings()
 
     def loadSourceExclusions(self):
         try:
@@ -742,11 +775,13 @@ class ActionHandler():
                     regexStrings = [i for i in infile.read().splitlines() if len(i) > 0]
                     for regexStr in regexStrings: self.extender.settings.sourceExclusionsModel.addEntry(regexStr)
         except Exception as e: self.extender.stderr.println("[-] Failed loading source exclusion(s) from file: %s" % e.__class__.__name__)
+        self.extender.settings.saveSettings()
 
     def toggleSourceExclusions(self):
         selectedRowIndexes = self.extender.sourceExclusionsTable.getSelectedRows()
         if len(selectedRowIndexes) > 0:
             self.extender.settings.sourceExclusionsModel.toggleEntries(selectedRowIndexes)
+        self.extender.settings.saveSettings()
 
     def addLinkExclusion(self):
         regexStr = self.extender.stAddExclusion2TextField.getText()
@@ -756,6 +791,7 @@ class ActionHandler():
             self.extender.stAddExclusion2TextField.setText("")
             self.extender.stAddExclusion2TextField.requestFocus()
             self.applyLinkExclusions()
+        self.extender.settings.saveSettings()
         
     def editLinkExclusion(self):
         index = self.extender.linkExclusionsTable.getSelectedRow()
@@ -771,15 +807,18 @@ class ActionHandler():
                 try: self.extender.settings.linkExclusionsModel.editEntryRegex(index, result)
                 except Exception as e: self.extender.stderr.println("[-] Failed editing link exclusion: %s" % e.__class__.__name__)
                 self.applyLinkExclusions()
+        self.extender.settings.saveSettings()
 
     def removeSelectedLinkExclusions(self):
         selectedRowIndexes = self.extender.linkExclusionsTable.getSelectedRows()
         for i in selectedRowIndexes[::-1]: self.extender.settings.linkExclusionsModel.removeEntry(i)
         self.applyLinkExclusions()
+        self.extender.settings.saveSettings()
 
     def clearLinkExclusions(self):
         self.extender.settings.linkExclusionsModel.clearEntries()
         #self.applyLinkExclusions() # has no effect
+        self.extender.settings.saveSettings()
 
     def loadLinkExclusions(self):
         try:
@@ -791,6 +830,7 @@ class ActionHandler():
                     for regexStr in regexStrings: self.extender.settings.linkExclusionsModel.addEntry(regexStr)
                     self.applyLinkExclusions()
         except Exception as e: self.extender.stderr.println("[-] Failed loading link exclusion(s) from file: %s" % e.__class__.__name__)
+        self.extender.settings.saveSettings()
             
 
     def toggleLinkExclusions(self):
@@ -798,6 +838,7 @@ class ActionHandler():
         if len(selectedRowIndexes) > 0:
             self.extender.settings.linkExclusionsModel.toggleEntries(selectedRowIndexes)
             self.applyLinkExclusions()
+        self.extender.settings.saveSettings()
     
     def applyLinkExclusions(self):
         regexes = [i.regex for i in self.extender.settings.linkExclusionsModel.entries if i.enabled]
