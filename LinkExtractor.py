@@ -89,6 +89,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
             "group1RadioButton1": "Only process JavaScript files",
             "group1RadioButton2": "Process all responses",
             "group1RadioButton3": "Pause LinkExtractor",
+            "inScopeOnlyCheckBox": "Only process in-scope URLs",
             "sourceExclusionsLabel": "Any responses from requests to URLs that match any of the Regular Expression patterns below will not be processed.",
             "linkExclusionsLabel": "Any links found in processed responses that match any of the Regular Expression patterns below will not be saved nor displayed.",
             "exportLabel": "Export findings as:",
@@ -104,8 +105,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         stSection1HeaderLabel.setFont(stHeaderFont)
         stSection1HeaderLabel.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 10, 0))
         
-        self.stGroup1RadioButton1 = swing.JRadioButton(self.stStrings["group1RadioButton1"])
-        self.stGroup1RadioButton1.setSelected(True)
+        self.stGroup1RadioButton1 = swing.JRadioButton(self.stStrings["group1RadioButton1"], None, True)
         self.stGroup1RadioButton1.setActionCommand("setProcess1")
         self.stGroup1RadioButton1.addActionListener(self.eventHandler)
         
@@ -116,11 +116,16 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         self.stGroup1RadioButton3 = swing.JRadioButton(self.stStrings["group1RadioButton3"])
         self.stGroup1RadioButton3.setActionCommand("setProcess0")
         self.stGroup1RadioButton3.addActionListener(self.eventHandler)
+        self.stGroup1RadioButton3.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 15, 0))
         
         stButtonGroup1 = swing.ButtonGroup()
         stButtonGroup1.add(self.stGroup1RadioButton1)
         stButtonGroup1.add(self.stGroup1RadioButton2)
         stButtonGroup1.add(self.stGroup1RadioButton3)
+
+        self.stInScopeOnlyCheckBox = swing.JCheckBox(self.stStrings["inScopeOnlyCheckBox"], None, True)
+        self.stInScopeOnlyCheckBox.setActionCommand("toggleInScopeOnly")
+        self.stInScopeOnlyCheckBox.addActionListener(self.eventHandler)
         
         stSeparator1 = swing.JSeparator(swing.SwingConstants.HORIZONTAL); setFixedSize(stSeparator1, 1920, 5)
  
@@ -268,6 +273,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                             .addComponent(self.stGroup1RadioButton1)
                             .addComponent(self.stGroup1RadioButton2)
                             .addComponent(self.stGroup1RadioButton3)
+                            .addComponent(self.stInScopeOnlyCheckBox)
                         )
                     )
                     .addComponent(stSeparator1)
@@ -322,6 +328,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                     .addComponent(self.stGroup1RadioButton1)
                     .addComponent(self.stGroup1RadioButton2)
                     .addComponent(self.stGroup1RadioButton3)
+                    .addComponent(self.stInScopeOnlyCheckBox)
                 )
                 .addComponent(stSeparator1)
                 .addComponent(stSection2HeaderLabel) # Section 2
@@ -408,7 +415,9 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         regexes = [i.regex for i in self.settings.sourceExclusionsModel.entries if i.enabled]
         if self.settings.process == 1 and extension != "js" or any([regex.search(url) for regex in regexes]): return
 
-        if self.callbacks.isInScope(urlObj) and not self.sourcesModel.entryExists(host, path, method, statusCode):
+        scopeBool = self.settings.inScopeOnly and self.callbacks.isInScope(urlObj) or not self.settings.inScopeOnly
+
+        if scopeBool and not self.sourcesModel.entryExists(host, path, method, statusCode):
             length = len(responseContent)
             mimeType = analyzedResponse.getStatedMimeType()
             time = str(datetime.now())
@@ -696,6 +705,7 @@ class Settings():
     def __init__(self, extender):
         self.extender = extender
         self.process = 1 # (the verb), 0 => nothing, 1 => only JS, 2 => anything
+        self.inScopeOnly = True
         self.sourceExclusionsModel = ExclusionsModel([])
         self.linkExclusionsModel = ExclusionsModel([])
 
@@ -712,11 +722,13 @@ class Settings():
             if self.process == 0: self.extender.stGroup1RadioButton3.setSelected(True)
             if self.process == 1: self.extender.stGroup1RadioButton1.setSelected(True)
             if self.process == 2: self.extender.stGroup1RadioButton2.setSelected(True)
+            self.inScopeOnly = settingsDict["inScopeOnly"]
+            self.extender.stInScopeOnlyCheckBox.setSelected(self.inScopeOnly)
             for k,v in settingsDict["sourceExclusions"].iteritems(): self.sourceExclusionsModel.addEntry(k, v)
             for k,v in settingsDict["linkExclusions"].iteritems(): self.linkExclusionsModel.addEntry(k, v)
 
     def saveSettings(self):
-        settingsDict = {"process": self.process}
+        settingsDict = {"process": self.process, "inScopeOnly": self.inScopeOnly}
         settingsDict["sourceExclusions"] = {i.regex.pattern:i.enabled for i in self.sourceExclusionsModel.entries}
         settingsDict["linkExclusions"] = {i.regex.pattern:i.enabled for i in self.linkExclusionsModel.entries}
         self.extender.callbacks.saveExtensionSetting("LESettings", json.dumps(settingsDict))
@@ -731,6 +743,10 @@ class ActionHandler():
 
     def setProcessSetting(self, value):
         self.extender.settings.process = value
+        self.extender.settings.saveSettings()
+
+    def toggleInScopeOnly(self):
+        self.extender.settings.inScopeOnly = not self.extender.settings.inScopeOnly
         self.extender.settings.saveSettings()
 
     def addSourceExclusion(self):
@@ -881,6 +897,8 @@ class EventHandler(swing.AbstractAction):
         if actionEvent.getActionCommand() == "setProcess0": self.actionHandler.setProcessSetting(0)
         elif actionEvent.getActionCommand() == "setProcess1": self.actionHandler.setProcessSetting(1)
         elif actionEvent.getActionCommand() == "setProcess2": self.actionHandler.setProcessSetting(2)
+        
+        elif actionEvent.getActionCommand() == "toggleInScopeOnly": self.actionHandler.toggleInScopeOnly()
 
         elif actionEvent.getActionCommand() == "addSourceExclusion": self.actionHandler.addSourceExclusion()
         elif actionEvent.getActionCommand() == "editSourceExclusion": self.actionHandler.editSourceExclusion()
