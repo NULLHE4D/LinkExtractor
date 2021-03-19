@@ -86,10 +86,11 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
             "section2HeaderLabel": "Source Exclusions",
             "section3HeaderLabel": "Link Exclusions",
             "section4HeaderLabel": "Misc",
+            "inScopeOnlyCheckBox": "Only process in-scope URLs",
+            "processLabel": "Select what you want LinkExtractor to do:",
             "group1RadioButton1": "Only process JavaScript files",
             "group1RadioButton2": "Process all responses",
             "group1RadioButton3": "Pause LinkExtractor",
-            "inScopeOnlyCheckBox": "Only process in-scope URLs",
             "sourceExclusionsLabel": "Any responses from requests to URLs that match any of the Regular Expression patterns below will not be processed.",
             "linkExclusionsLabel": "Any links found in processed responses that match any of the Regular Expression patterns below will not be saved nor displayed.",
             "exportLabel": "Export findings as:",
@@ -104,7 +105,14 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         stSection1HeaderLabel = swing.JLabel(self.stStrings["section1HeaderLabel"])
         stSection1HeaderLabel.setFont(stHeaderFont)
         stSection1HeaderLabel.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 10, 0))
-        
+
+        self.stInScopeOnlyCheckBox = swing.JCheckBox(self.stStrings["inScopeOnlyCheckBox"], None, True)
+        self.stInScopeOnlyCheckBox.setActionCommand("toggleInScopeOnly")
+        self.stInScopeOnlyCheckBox.addActionListener(self.eventHandler)
+        self.stInScopeOnlyCheckBox.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 15, 0))
+       
+        self.stProcessLabel = swing.JLabel(self.stStrings["processLabel"])
+
         self.stGroup1RadioButton1 = swing.JRadioButton(self.stStrings["group1RadioButton1"], None, True)
         self.stGroup1RadioButton1.setActionCommand("setProcess1")
         self.stGroup1RadioButton1.addActionListener(self.eventHandler)
@@ -116,16 +124,11 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         self.stGroup1RadioButton3 = swing.JRadioButton(self.stStrings["group1RadioButton3"])
         self.stGroup1RadioButton3.setActionCommand("setProcess0")
         self.stGroup1RadioButton3.addActionListener(self.eventHandler)
-        self.stGroup1RadioButton3.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 15, 0))
         
         stButtonGroup1 = swing.ButtonGroup()
         stButtonGroup1.add(self.stGroup1RadioButton1)
         stButtonGroup1.add(self.stGroup1RadioButton2)
         stButtonGroup1.add(self.stGroup1RadioButton3)
-
-        self.stInScopeOnlyCheckBox = swing.JCheckBox(self.stStrings["inScopeOnlyCheckBox"], None, True)
-        self.stInScopeOnlyCheckBox.setActionCommand("toggleInScopeOnly")
-        self.stInScopeOnlyCheckBox.addActionListener(self.eventHandler)
         
         stSeparator1 = swing.JSeparator(swing.SwingConstants.HORIZONTAL); setFixedSize(stSeparator1, 1920, 5)
  
@@ -270,10 +273,11 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                     .addComponent(stSection1HeaderLabel) # Section 1
                     .addGroup(stLayout.createSequentialGroup()
                         .addGroup(stLayout.createParallelGroup()
+                            .addComponent(self.stInScopeOnlyCheckBox)
+                            .addComponent(self.stProcessLabel)
                             .addComponent(self.stGroup1RadioButton1)
                             .addComponent(self.stGroup1RadioButton2)
                             .addComponent(self.stGroup1RadioButton3)
-                            .addComponent(self.stInScopeOnlyCheckBox)
                         )
                     )
                     .addComponent(stSeparator1)
@@ -325,10 +329,11 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
             stLayout.createSequentialGroup()
                 .addComponent(stSection1HeaderLabel) # Section 1
                 .addGroup(stLayout.createSequentialGroup()
+                    .addComponent(self.stInScopeOnlyCheckBox)
+                    .addComponent(self.stProcessLabel)
                     .addComponent(self.stGroup1RadioButton1)
                     .addComponent(self.stGroup1RadioButton2)
                     .addComponent(self.stGroup1RadioButton3)
-                    .addComponent(self.stInScopeOnlyCheckBox)
                 )
                 .addComponent(stSeparator1)
                 .addComponent(stSection2HeaderLabel) # Section 2
