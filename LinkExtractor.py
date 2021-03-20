@@ -91,6 +91,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
             "group1RadioButton1": "Only process JavaScript files",
             "group1RadioButton2": "Process all responses",
             "group1RadioButton3": "Pause LinkExtractor",
+            "toolSelectionLabel": "Select which tools you want LinkExtractor to process responses from:",
             "sourceExclusionsLabel": "Any responses from requests to URLs that match any of the Regular Expression patterns below will not be processed.",
             "linkExclusionsLabel": "Any links found in processed responses that match any of the Regular Expression patterns below will not be saved nor displayed.",
             "exportLabel": "Export findings as:",
@@ -111,7 +112,24 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         self.stInScopeOnlyCheckBox.addActionListener(self.eventHandler)
         self.stInScopeOnlyCheckBox.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 15, 0))
        
-        self.stProcessLabel = swing.JLabel(self.stStrings["processLabel"])
+        stToolSelectionLabel = swing.JLabel(self.stStrings["toolSelectionLabel"])
+
+        self.stToolSelectionCheckBox1 = swing.JCheckBox("Proxy", None, True)
+        self.stToolSelectionCheckBox1.setActionCommand("toggleToolSelectionProxy")
+        self.stToolSelectionCheckBox1.addActionListener(self.eventHandler)
+        self.stToolSelectionCheckBox1.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 15, 15))
+
+        self.stToolSelectionCheckBox2 = swing.JCheckBox("Spider", None, False)
+        self.stToolSelectionCheckBox2.setActionCommand("toggleToolSelectionSpider")
+        self.stToolSelectionCheckBox2.addActionListener(self.eventHandler)
+        self.stToolSelectionCheckBox2.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 0, 15))
+       
+        self.stToolSelectionCheckBox3 = swing.JCheckBox("Scanner", None, False)
+        self.stToolSelectionCheckBox3.setActionCommand("toggleToolSelectionScanner")
+        self.stToolSelectionCheckBox3.addActionListener(self.eventHandler)
+        self.stToolSelectionCheckBox3.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 0, 0))
+       
+        stProcessLabel = swing.JLabel(self.stStrings["processLabel"])
 
         self.stGroup1RadioButton1 = swing.JRadioButton(self.stStrings["group1RadioButton1"], None, True)
         self.stGroup1RadioButton1.setActionCommand("setProcess1")
@@ -274,7 +292,13 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                     .addGroup(stLayout.createSequentialGroup()
                         .addGroup(stLayout.createParallelGroup()
                             .addComponent(self.stInScopeOnlyCheckBox)
-                            .addComponent(self.stProcessLabel)
+                            .addComponent(stToolSelectionLabel)
+                            .addGroup(stLayout.createSequentialGroup()
+                                .addComponent(self.stToolSelectionCheckBox1)
+                                .addComponent(self.stToolSelectionCheckBox2)
+                                .addComponent(self.stToolSelectionCheckBox3)
+                            )
+                            .addComponent(stProcessLabel)
                             .addComponent(self.stGroup1RadioButton1)
                             .addComponent(self.stGroup1RadioButton2)
                             .addComponent(self.stGroup1RadioButton3)
@@ -330,7 +354,13 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                 .addComponent(stSection1HeaderLabel) # Section 1
                 .addGroup(stLayout.createSequentialGroup()
                     .addComponent(self.stInScopeOnlyCheckBox)
-                    .addComponent(self.stProcessLabel)
+                    .addComponent(stToolSelectionLabel)
+                    .addGroup(stLayout.createParallelGroup()
+                        .addComponent(self.stToolSelectionCheckBox1)
+                        .addComponent(self.stToolSelectionCheckBox2)
+                        .addComponent(self.stToolSelectionCheckBox3)
+                    )
+                    .addComponent(stProcessLabel)
                     .addComponent(self.stGroup1RadioButton1)
                     .addComponent(self.stGroup1RadioButton2)
                     .addComponent(self.stGroup1RadioButton3)
@@ -402,7 +432,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
 
     def processHttpMessage(self, toolFlag, messageIsRequest, messageInfo):
 
-        if messageIsRequest or self.settings.process == 0: return
+        if messageIsRequest or self.settings.process == 0 or not toolFlag in self.settings.toolSelection: return
 
         analyzedRequest = self.helpers.analyzeRequest(messageInfo)
         analyzedResponse = self.helpers.analyzeResponse(messageInfo.getResponse())
@@ -709,8 +739,9 @@ class Settings():
 
     def __init__(self, extender):
         self.extender = extender
-        self.process = 1 # (the verb), 0 => nothing, 1 => only JS, 2 => anything
         self.inScopeOnly = True
+        self.toolSelection = [self.extender.callbacks.TOOL_PROXY]
+        self.process = 1 # (the verb), 0 => nothing, 1 => only JS, 2 => anything
         self.sourceExclusionsModel = ExclusionsModel([])
         self.linkExclusionsModel = ExclusionsModel([])
 
@@ -723,17 +754,25 @@ class Settings():
             self.saveSettings()
         else:
             settingsDict = json.loads(self.extender.callbacks.loadExtensionSetting("LESettings"), encoding="utf-8")
+            
+            self.inScopeOnly = settingsDict["inScopeOnly"]
+            self.extender.stInScopeOnlyCheckBox.setSelected(self.inScopeOnly)
+
+            self.toolSelection = settingsDict["toolSelection"]
+            self.extender.stToolSelectionCheckBox1.setSelected(self.extender.callbacks.TOOL_PROXY in self.toolSelection)
+            self.extender.stToolSelectionCheckBox2.setSelected(self.extender.callbacks.TOOL_SPIDER in self.toolSelection)
+            self.extender.stToolSelectionCheckBox3.setSelected(self.extender.callbacks.TOOL_SCANNER in self.toolSelection)
+
             self.process = settingsDict["process"]
             if self.process == 0: self.extender.stGroup1RadioButton3.setSelected(True)
             if self.process == 1: self.extender.stGroup1RadioButton1.setSelected(True)
             if self.process == 2: self.extender.stGroup1RadioButton2.setSelected(True)
-            self.inScopeOnly = settingsDict["inScopeOnly"]
-            self.extender.stInScopeOnlyCheckBox.setSelected(self.inScopeOnly)
+            
             for k,v in settingsDict["sourceExclusions"].iteritems(): self.sourceExclusionsModel.addEntry(k, v)
             for k,v in settingsDict["linkExclusions"].iteritems(): self.linkExclusionsModel.addEntry(k, v)
 
     def saveSettings(self):
-        settingsDict = {"process": self.process, "inScopeOnly": self.inScopeOnly}
+        settingsDict = {"process": self.process, "inScopeOnly": self.inScopeOnly, "toolSelection": self.toolSelection}
         settingsDict["sourceExclusions"] = {i.regex.pattern:i.enabled for i in self.sourceExclusionsModel.entries}
         settingsDict["linkExclusions"] = {i.regex.pattern:i.enabled for i in self.linkExclusionsModel.entries}
         self.extender.callbacks.saveExtensionSetting("LESettings", json.dumps(settingsDict))
@@ -746,12 +785,18 @@ class ActionHandler():
     def __init__(self, extender):
         self.extender = extender
 
-    def setProcessSetting(self, value):
-        self.extender.settings.process = value
-        self.extender.settings.saveSettings()
-
     def toggleInScopeOnly(self):
         self.extender.settings.inScopeOnly = not self.extender.settings.inScopeOnly
+        self.extender.settings.saveSettings()
+
+    def toggleToolSelection(self, tool):
+        toolFlag = {"proxy": self.extender.callbacks.TOOL_PROXY, "spider": self.extender.callbacks.TOOL_SPIDER, "scanner": self.extender.callbacks.TOOL_SCANNER}[tool]
+        if toolFlag in self.extender.settings.toolSelection: self.extender.settings.toolSelection.remove(toolFlag)
+        else: self.extender.settings.toolSelection.append(toolFlag)
+        self.extender.settings.saveSettings()
+
+    def setProcessSetting(self, value):
+        self.extender.settings.process = value
         self.extender.settings.saveSettings()
 
     def addSourceExclusion(self):
@@ -899,12 +944,16 @@ class EventHandler(swing.AbstractAction):
         self.actionHandler = actionHandler
 
     def actionPerformed(self, actionEvent):
-        if actionEvent.getActionCommand() == "setProcess0": self.actionHandler.setProcessSetting(0)
+        if actionEvent.getActionCommand() == "toggleInScopeOnly": self.actionHandler.toggleInScopeOnly()
+
+        elif actionEvent.getActionCommand() == "toggleToolSelectionProxy": self.actionHandler.toggleToolSelection("proxy")
+        elif actionEvent.getActionCommand() == "toggleToolSelectionSpider": self.actionHandler.toggleToolSelection("spider")
+        elif actionEvent.getActionCommand() == "toggleToolSelectionScanner": self.actionHandler.toggleToolSelection("scanner")
+
+        elif actionEvent.getActionCommand() == "setProcess0": self.actionHandler.setProcessSetting(0)
         elif actionEvent.getActionCommand() == "setProcess1": self.actionHandler.setProcessSetting(1)
         elif actionEvent.getActionCommand() == "setProcess2": self.actionHandler.setProcessSetting(2)
         
-        elif actionEvent.getActionCommand() == "toggleInScopeOnly": self.actionHandler.toggleInScopeOnly()
-
         elif actionEvent.getActionCommand() == "addSourceExclusion": self.actionHandler.addSourceExclusion()
         elif actionEvent.getActionCommand() == "editSourceExclusion": self.actionHandler.editSourceExclusion()
         elif actionEvent.getActionCommand() == "removeSelectedSourceExclusions": self.actionHandler.removeSelectedSourceExclusions()
