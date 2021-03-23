@@ -87,6 +87,8 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
             "section3HeaderLabel": "Link Exclusions",
             "section4HeaderLabel": "Misc",
             "inScopeOnlyCheckBox": "Only process in-scope URLs",
+            "ignoreDupsCheckBox": "Ignore duplicate items based on URL, query parameters, request method and response status code",
+            "ignoreDupsLabel": "*may impact performance",
             "processLabel": "Select what you want LinkExtractor to do:",
             "group1RadioButton1": "Only process JavaScript files",
             "group1RadioButton2": "Process all responses",
@@ -110,7 +112,14 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         self.stInScopeOnlyCheckBox = swing.JCheckBox(self.stStrings["inScopeOnlyCheckBox"], None, True)
         self.stInScopeOnlyCheckBox.setActionCommand("toggleInScopeOnly")
         self.stInScopeOnlyCheckBox.addActionListener(self.eventHandler)
-        self.stInScopeOnlyCheckBox.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 15, 0))
+       
+        self.stIgnoreDupsCheckBox = swing.JCheckBox(self.stStrings["ignoreDupsCheckBox"], None, True)
+        self.stIgnoreDupsCheckBox.setActionCommand("toggleIgnoreDups")
+        self.stIgnoreDupsCheckBox.addActionListener(self.eventHandler)
+        self.stIgnoreDupsCheckBox.setBorder(swing.BorderFactory.createEmptyBorder(0, 0, 15, 0))
+        
+        stIgnoreDupsLabel = swing.JLabel(self.stStrings["ignoreDupsLabel"])
+        stIgnoreDupsLabel.setFont(swing.JLabel().getFont().deriveFont(Font.ITALIC))
        
         stToolSelectionLabel = swing.JLabel(self.stStrings["toolSelectionLabel"])
 
@@ -292,6 +301,10 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                     .addGroup(stLayout.createSequentialGroup()
                         .addGroup(stLayout.createParallelGroup()
                             .addComponent(self.stInScopeOnlyCheckBox)
+                            .addGroup(stLayout.createSequentialGroup()
+                                .addComponent(self.stIgnoreDupsCheckBox)
+                                .addComponent(stIgnoreDupsLabel)
+                            )
                             .addComponent(stToolSelectionLabel)
                             .addGroup(stLayout.createSequentialGroup()
                                 .addComponent(self.stToolSelectionCheckBox1)
@@ -354,6 +367,10 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
                 .addComponent(stSection1HeaderLabel) # Section 1
                 .addGroup(stLayout.createSequentialGroup()
                     .addComponent(self.stInScopeOnlyCheckBox)
+                    .addGroup(stLayout.createParallelGroup()
+                        .addComponent(self.stIgnoreDupsCheckBox)
+                        .addComponent(stIgnoreDupsLabel)
+                    )
                     .addComponent(stToolSelectionLabel)
                     .addGroup(stLayout.createParallelGroup()
                         .addComponent(self.stToolSelectionCheckBox1)
@@ -451,8 +468,9 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         if self.settings.process == 1 and extension != "js" or any([regex.search(url) for regex in regexes]): return
 
         scopeBool = self.settings.inScopeOnly and self.callbacks.isInScope(urlObj) or not self.settings.inScopeOnly
+        dupBool = self.settings.ignoreDups and not self.sourcesModel.entryExists(host, path, method, statusCode) or not self.settings.ignoreDups
 
-        if scopeBool and not self.sourcesModel.entryExists(host, path, method, statusCode):
+        if scopeBool and dupBool:
             length = len(responseContent)
             mimeType = analyzedResponse.getStatedMimeType()
             time = str(datetime.now())
@@ -740,23 +758,26 @@ class Settings():
     def __init__(self, extender):
         self.extender = extender
         self.inScopeOnly = True
+        self.ignoreDups = True
         self.toolSelection = [self.extender.callbacks.TOOL_PROXY]
         self.process = 1 # (the verb), 0 => nothing, 1 => only JS, 2 => anything
         self.sourceExclusionsModel = ExclusionsModel([])
         self.linkExclusionsModel = ExclusionsModel([])
 
     def loadSettings(self):
-        if self.extender.callbacks.loadExtensionSetting("LENotFirstTime") == None:
+        if self.extender.callbacks.loadExtensionSetting("LENotFirstTime-2d9e389a") == None:
             defaultExclusionRegexStr = "\.(png|jpg|jpeg|gif|ico|woff|woff2|ttf)($|\?)"
             self.sourceExclusionsModel.addEntry(defaultExclusionRegexStr)
             self.linkExclusionsModel.addEntry(defaultExclusionRegexStr)
-            self.extender.callbacks.saveExtensionSetting("LENotFirstTime", "yes")
+            self.extender.callbacks.saveExtensionSetting("LENotFirstTime-2d9e389a", "yes")
             self.saveSettings()
         else:
             settingsDict = json.loads(self.extender.callbacks.loadExtensionSetting("LESettings"), encoding="utf-8")
             
             self.inScopeOnly = settingsDict["inScopeOnly"]
             self.extender.stInScopeOnlyCheckBox.setSelected(self.inScopeOnly)
+            self.ignoreDups = settingsDict["ignoreDups"]
+            self.extender.stIgnoreDupsCheckBox.setSelected(self.ignoreDups)
 
             self.toolSelection = settingsDict["toolSelection"]
             self.extender.stToolSelectionCheckBox1.setSelected(self.extender.callbacks.TOOL_PROXY in self.toolSelection)
@@ -772,7 +793,7 @@ class Settings():
             for k,v in settingsDict["linkExclusions"].iteritems(): self.linkExclusionsModel.addEntry(k, v)
 
     def saveSettings(self):
-        settingsDict = {"process": self.process, "inScopeOnly": self.inScopeOnly, "toolSelection": self.toolSelection}
+        settingsDict = {"process": self.process, "inScopeOnly": self.inScopeOnly, "ignoreDups": self.ignoreDups, "toolSelection": self.toolSelection}
         settingsDict["sourceExclusions"] = {i.regex.pattern:i.enabled for i in self.sourceExclusionsModel.entries}
         settingsDict["linkExclusions"] = {i.regex.pattern:i.enabled for i in self.linkExclusionsModel.entries}
         self.extender.callbacks.saveExtensionSetting("LESettings", json.dumps(settingsDict))
@@ -787,6 +808,10 @@ class ActionHandler():
 
     def toggleInScopeOnly(self):
         self.extender.settings.inScopeOnly = not self.extender.settings.inScopeOnly
+        self.extender.settings.saveSettings()
+
+    def toggleIgnoreDups(self):
+        self.extender.settings.ignoreDups = not self.extender.settings.ignoreDups
         self.extender.settings.saveSettings()
 
     def toggleToolSelection(self, tool):
@@ -945,6 +970,7 @@ class EventHandler(swing.AbstractAction):
 
     def actionPerformed(self, actionEvent):
         if actionEvent.getActionCommand() == "toggleInScopeOnly": self.actionHandler.toggleInScopeOnly()
+        elif actionEvent.getActionCommand() == "toggleIgnoreDups": self.actionHandler.toggleIgnoreDups()
 
         elif actionEvent.getActionCommand() == "toggleToolSelectionProxy": self.actionHandler.toggleToolSelection("proxy")
         elif actionEvent.getActionCommand() == "toggleToolSelectionSpider": self.actionHandler.toggleToolSelection("spider")
