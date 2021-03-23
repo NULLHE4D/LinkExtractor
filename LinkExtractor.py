@@ -88,7 +88,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
             "section4HeaderLabel": "Misc",
             "inScopeOnlyCheckBox": "Only process in-scope URLs",
             "ignoreDupsCheckBox": "Ignore duplicate items based on URL, query parameters, request method and response status code",
-            "ignoreDupsLabel": "*may impact performance",
+            "ignoreDupsLabel": "*may impact performance if not set",
             "processLabel": "Select what you want LinkExtractor to do:",
             "group1RadioButton1": "Only process JavaScript files",
             "group1RadioButton2": "Process all responses",
@@ -451,38 +451,42 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
 
         if messageIsRequest or self.settings.process == 0 or not toolFlag in self.settings.toolSelection: return
 
-        analyzedRequest = self.helpers.analyzeRequest(messageInfo)
-        analyzedResponse = self.helpers.analyzeResponse(messageInfo.getResponse())
-        responseContent = self.helpers.bytesToString(messageInfo.getResponse())
+        try:
 
-        urlObj = analyzedRequest.getUrl()
-        url = str(urlObj)
-        parsedUrl = urlparse(str(urlObj))
-        host = "%s://%s" % (parsedUrl.scheme, parsedUrl.hostname)
-        path = "%s?%s" % (parsedUrl.path, parsedUrl.query) if parsedUrl.query else parsedUrl.path
-        method = analyzedRequest.getMethod()
-        statusCode = analyzedResponse.getStatusCode()
-        extension = getExtension(parsedUrl.path)
+            analyzedRequest = self.helpers.analyzeRequest(messageInfo)
+            analyzedResponse = self.helpers.analyzeResponse(messageInfo.getResponse())
+            responseContent = self.helpers.bytesToString(messageInfo.getResponse())
 
-        regexes = [i.regex for i in self.settings.sourceExclusionsModel.entries if i.enabled]
-        if self.settings.process == 1 and extension != "js" or any([regex.search(url) for regex in regexes]): return
+            urlObj = analyzedRequest.getUrl()
+            url = str(urlObj)
+            parsedUrl = urlparse(str(urlObj))
+            host = "%s://%s" % (parsedUrl.scheme, parsedUrl.hostname)
+            path = "%s?%s" % (parsedUrl.path, parsedUrl.query) if parsedUrl.query else parsedUrl.path
+            method = analyzedRequest.getMethod()
+            statusCode = analyzedResponse.getStatusCode()
+            extension = getExtension(parsedUrl.path)
 
-        scopeBool = self.settings.inScopeOnly and self.callbacks.isInScope(urlObj) or not self.settings.inScopeOnly
-        dupBool = self.settings.ignoreDups and not self.sourcesModel.entryExists(host, path, method, statusCode) or not self.settings.ignoreDups
+            regexes = [i.regex for i in self.settings.sourceExclusionsModel.entries if i.enabled]
+            if self.settings.process == 1 and extension != "js" or any([regex.search(url) for regex in regexes]): return
 
-        if scopeBool and dupBool:
-            length = len(responseContent)
-            mimeType = analyzedResponse.getStatedMimeType()
-            time = str(datetime.now())
-            links = self.linkExtractor.extractLinks(responseContent, host)
-            sourceEntry = self.sourcesModel.addEntry(host, path, method, statusCode, length, mimeType, extension, time)
-            
-            regexes = [i.regex for i in self.settings.linkExclusionsModel.entries if i.enabled]
-            for i in links:
-                if any([regex.search(i) for regex in regexes]): continue
-                linkEntry = self.linksModel.addEntry(i, sourceEntry)
-                sourceEntry.addLink(linkEntry)
-            self.sourcesModel.refreshTable()
+            scopeBool = self.settings.inScopeOnly and self.callbacks.isInScope(urlObj) or not self.settings.inScopeOnly
+            dupBool = self.settings.ignoreDups and not self.sourcesModel.entryExists(host, path, method, statusCode) or not self.settings.ignoreDups
+
+            if scopeBool and dupBool:
+                length = len(responseContent)
+                mimeType = analyzedResponse.getStatedMimeType()
+                time = str(datetime.now())
+                links = self.linkExtractor.extractLinks(responseContent, host)
+                sourceEntry = self.sourcesModel.addEntry(host, path, method, statusCode, length, mimeType, extension, time)
+                
+                regexes = [i.regex for i in self.settings.linkExclusionsModel.entries if i.enabled]
+                for i in links:
+                    if any([regex.search(i) for regex in regexes]): continue
+                    linkEntry = self.linksModel.addEntry(i, sourceEntry)
+                    sourceEntry.addLink(linkEntry)
+                self.sourcesModel.refreshTable()
+
+        except: pass
 
 
 class LinkExtractor():
